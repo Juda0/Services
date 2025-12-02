@@ -1,0 +1,83 @@
+version: '3.9'
+services:
+
+  # Auth Postgres
+  postgres-auth:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: auth
+      POSTGRES_PASSWORD: auth
+      POSTGRES_DB: auth_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-auth-data:/var/lib/postgresql/data
+      - ./db-init/auth-init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # User Postgres
+  postgres-user:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: user
+      POSTGRES_DB: user_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-user-data:/var/lib/postgresql/data
+      - ./db-init/user-init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # MongoDB for Friend Service
+  mongodb:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  # Auth Service
+  auth-service:
+    build: ./auth-service
+    environment:
+      DATABASE_URL: postgres://auth:auth@postgres-auth:5432/auth_db
+      JWT_SECRET: supersecret
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      - postgres-auth
+      - rabbitmq
+    ports:
+      - "3000:3000"
+
+  # User Service
+  user-service:
+    build: ./user-service
+    environment:
+      DATABASE_URL: postgres://user:user@postgres-user:5432/user_db
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      - postgres-user
+      - rabbitmq
+    ports:
+      - "3001:3001"
+
+  # Friend Service
+  friend-service:
+    build: ./friend-service
+    environment:
+      MONGO_URL: mongodb://mongodb:27017
+    depends_on:
+      - mongodb
+    ports:
+      - "3002:3002"
+
+volumes:
+  postgres-auth-data:
+  postgres-user-data:
+  mongo-data:
