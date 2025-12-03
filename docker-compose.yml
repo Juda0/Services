@@ -1,83 +1,116 @@
-version: '3.9'
+version: "3.9"
+
 services:
 
+  # ------------------------
   # Auth Postgres
+  # ------------------------
   postgres-auth:
     image: postgres:15
     environment:
-      POSTGRES_USER: auth
-      POSTGRES_PASSWORD: auth
-      POSTGRES_DB: auth_db
-    ports:
-      - "5433:5432"
+      POSTGRES_USER: ${AUTH_DB_USER}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD}
+      POSTGRES_DB: ${AUTH_DB_NAME}
     volumes:
       - postgres-auth-data:/var/lib/postgresql/data
       - ./db-init/auth-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - backend
 
+  # ------------------------
   # User Postgres
+  # ------------------------
   postgres-user:
     image: postgres:15
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: user
-      POSTGRES_DB: user_db
-    ports:
-      - "5434:5432"
+      POSTGRES_USER: ${USER_DB_USER}
+      POSTGRES_PASSWORD: ${USER_DB_PASSWORD}
+      POSTGRES_DB: ${USER_DB_NAME}
     volumes:
       - postgres-user-data:/var/lib/postgresql/data
       - ./db-init/user-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - backend
 
-  # MongoDB for Friend Service
+  # ------------------------
+  # MongoDB
+  # ------------------------
   mongodb:
     image: mongo:6
-    ports:
-      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
     volumes:
       - mongo-data:/data/db
+    networks:
+      - backend
 
+  # ------------------------
   # RabbitMQ
+  # ------------------------
   rabbitmq:
     image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "15672:15672"   # Management UI (keep)
+    networks:
+      - backend
 
+  # ------------------------
   # Auth Service
+  # ------------------------
   auth-service:
     build: ./auth-service
     environment:
-      DATABASE_URL: postgres://auth:auth@postgres-auth:5432/auth_db
-      JWT_SECRET: supersecret
-      RABBITMQ_URL: amqp://rabbitmq:5672
+      DATABASE_URL: postgres://${AUTH_DB_USER}:${AUTH_DB_PASSWORD}@postgres-auth:5432/${AUTH_DB_NAME}
+      JWT_SECRET: ${JWT_SECRET}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
     depends_on:
       - postgres-auth
       - rabbitmq
     ports:
       - "3000:3000"
+    networks:
+      - backend
 
+  # ------------------------
   # User Service
+  # ------------------------
   user-service:
     build: ./user-service
     environment:
-      DATABASE_URL: postgres://user:user@postgres-user:5432/user_db
-      RABBITMQ_URL: amqp://rabbitmq:5672
+      DATABASE_URL: postgres://${USER_DB_USER}:${USER_DB_PASSWORD}@postgres-user:5432/${USER_DB_NAME}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
       - postgres-user
       - rabbitmq
     ports:
       - "3001:3001"
+    networks:
+      - backend
 
+  # ------------------------
   # Friend Service
+  # ------------------------
   friend-service:
     build: ./friend-service
     environment:
-      MONGO_URL: mongodb://mongodb:27017
+      MONGO_URL: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongodb:27017/?authSource=admin
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
       - mongodb
     ports:
       - "3002:3002"
+    networks:
+      - backend
 
 volumes:
   postgres-auth-data:
   postgres-user-data:
   mongo-data:
+
+networks:
+  backend:
