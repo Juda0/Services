@@ -35,26 +35,52 @@ async function initRabbit(retries = 10, delay = 3000) {
 initRabbit().catch(console.error);
 
 app.post('/auth/register', async (req, res) => {
-  const { username, password } = req.body;
-  const hashed = await bcrypt.hash(password, 10);
-  const id = uuidv4();
+  try {
+    const user = {
+      username: req.body.username,
+      userId: uuidv4()
+    };
 
-  await pool.query(
-    'INSERT INTO auth.users (id, username, password_hash) VALUES ($1, $2, $3)',
-    [id, username, hashed]
-  );
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
 
-  if (channel) {
-    channel.sendToQueue(
-      'UserRegistered',
-      Buffer.from(JSON.stringify({ user_id: id, username }))
+    // Save user to DB
+    await pool.query(
+      'INSERT INTO auth.users (id, username, password_hash) VALUES ($1, $2, $3)',
+      [user.userId, user.username, hashedPassword]
     );
-  } else {
-    console.log('RabbitMQ channel not ready, skipping message publish');
-  }
 
-  res.json({ message: 'User created', user_id: id });
+    // Publish event
+    const eventPayload = {
+      userId: user.userId,
+      username: user.username,
+      eventId: uuidv4(),
+      createdAt: new Date().toISOString()
+    };
+
+    if (channel) {
+      channel.sendToQueue(
+        "UserRegistered",
+        Buffer.from(JSON.stringify(eventPayload)),
+        { persistent: true },
+        (err, ok) => {
+          if (err) console.error("Publish failed:", err);
+        }
+      );
+    } else {
+      console.warn("RabbitMQ channel not ready, skipping publish");
+    }
+
+    res.status(201).json({
+      message: "User created successfully",
+      userId: user.userId
+    });
+
+  } catch (err) {
+    console.error("Registration failed:", err);
+    res.status(500).json({ error: "Registration failed" });
+  }
 });
+
 
 app.post('/auth/login', async (req, res) => {
   const { username, password } = req.body;
