@@ -45,12 +45,12 @@ async function initRabbit(retries = 10, delay = 3000) {
 
       // Consume UserRegistered events
       channel.consume("UserRegistered", async (msg) => {
-        const { user_id, username } = JSON.parse(msg.content.toString());
+        const { userId, username } = JSON.parse(msg.content.toString());
         await pool.query(
           `INSERT INTO user_profiles.users (id, username)
            VALUES ($1, $2)
            ON CONFLICT (id) DO NOTHING`,
-          [user_id, username],
+          [userId, username],
         );
         channel.ack(msg);
       });
