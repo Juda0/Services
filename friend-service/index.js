@@ -14,7 +14,9 @@ async function init() {
 init();
 
 app.get('/friends/:userId', async (req, res) => {
-  const friends = await db.collection('friends').findOne({ user_id: req.params.userId });
+  const friends = await db
+    .collection('friends')
+    .findOne({ user_id: req.params.userId });
   res.json(friends || { friends: [] });
 });
 
