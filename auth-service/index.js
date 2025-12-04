@@ -18,8 +18,8 @@ async function initRabbit(retries = 10, delay = 3000) {
   for (let i = 0; i < retries; i++) {
     try {
       const conn = await amqp.connect(process.env.RABBITMQ_URL);
-      channel = await conn.createChannel();
-      await channel.assertQueue('UserRegistered');
+      channel = await conn.createConfirmChannel();
+      await channel.assertQueue('UserRegistered', { durable: true });
       console.log('Connected to RabbitMQ');
       return;
     } catch {
