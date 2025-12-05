@@ -16,6 +16,12 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 let channel;
 
+// Middleware to add trace ID
+app.use((req, res, next) => {
+  req.traceId = uuidv4();
+  next();
+});
+
 async function initRabbit() {
   while (true) {
     try {
@@ -40,8 +46,9 @@ initRabbit().catch((err) => logger.error(err));
 
 app.post('/auth/register', async (req, res) => {
   try {
-    logger.info('Register attempt', { username: req.body.username });
     const { username, password } = req.body;
+    const traceId = req.traceId;
+    logger.info('Register attempt', { username: req.body.username , traceId: traceId});
     const hashed = await bcrypt.hash(password, 10);
     const id = uuidv4();
 
@@ -53,15 +60,15 @@ app.post('/auth/register', async (req, res) => {
     if (channel) {
       channel.sendToQueue(
         'UserRegistered',
-        Buffer.from(JSON.stringify({ user_id: id, username }))
+        Buffer.from(JSON.stringify({ user_id: id, username, traceId: traceId }))
       );
     } else {
-      logger.warn('RabbitMQ channel not ready, skipping message publish');
+      logger.warn('RabbitMQ channel not ready, skipping message publish', { traceId: traceId });
     }
 
     res.json({ message: 'User created', user_id: id });
   } catch (err) {
-    logger.error('Error in /auth/register', { error: err });
+    logger.error('Error in /auth/register', { error: err, traceId: traceId });
     res.status(500).json({ error: 'Internal server error' });
   }
 });

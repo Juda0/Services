@@ -62,9 +62,9 @@ async function initRabbit() {
         if (!msg) return;
 
         try {
-          const { user_id, username } = JSON.parse(msg.content.toString());
+          const { user_id, username, traceId} = JSON.parse(msg.content.toString());
 
-          logger.info("Received UserRegistered event", { user_id, username });
+          logger.info("Received UserRegistered event", { user_id, username, traceId });
 
           await pool.query(
             `INSERT INTO user_profiles.users (id, username)
@@ -74,16 +74,16 @@ async function initRabbit() {
           );
 
           channel.ack(msg);
-          logger.info("UserRegistered event processed", { user_id });
+          logger.info("UserRegistered event processed", { user_id, traceId});
         } catch (err) {
           logger.error("Failed to process UserRegistered", {
-            error: err.message,
+            error: err.message, traceId: traceId
           });
           // Do not ack → message will retry automatically
         }
       });
 
-      logger.info("UserRegistered consumer is active");
+      logger.info("UserRegistered consumer is active" );
 
       return; // Successful connection → exit loop
     } catch (err) {
