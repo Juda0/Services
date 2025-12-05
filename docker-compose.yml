@@ -126,6 +126,10 @@ services:
 
   logstash:
     image: docker.elastic.co/logstash/logstash:8.12.0
+    environment:
+      - LOGSTASH_PORT=${LOGSTASH_PORT}
+      - ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST}
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT}
     ports:
       - "${LOGSTASH_PORT}:5044"
     volumes:

@@ -1,7 +1,7 @@
 const PORT = process.env.PORT || 3002;
 const express = require('express');
 const { MongoClient } = require('mongodb');
-const logger = require("./logger");
+const logger = require('./logger');
 
 const app = express();
 app.use(express.json());
