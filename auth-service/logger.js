@@ -1,18 +1,23 @@
-const winston = require('winston');
+const { createLogger, transports, format } = require('winston');
 const LogstashTransport = require('winston-logstash/lib/winston-logstash-latest');
 
 const LOGSTASH_HOST = process.env.LOGSTASH_HOST || 'logstash';
 const LOGSTASH_PORT = parseInt(process.env.LOGSTASH_PORT || '5044', 10);
 
-const logger = winston.createLogger({
+const logger = createLogger({
   level: 'info',
-  format: winston.format.json(),
+  format: format.combine(
+    format.timestamp({
+      format: () => new Date().toISOString() // always UTC
+    }),
+    format.json()
+  ),
   transports: [
-    new winston.transports.Console(),
+    new transports.Console(),
     new LogstashTransport({
       host: LOGSTASH_HOST,
       port: LOGSTASH_PORT,
-      max_connect_retries: 5, // or -1 for infinite retries
+      max_connect_retries: -1,
       timeout_connect_retries: 5000,
     }),
   ],

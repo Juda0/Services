@@ -37,19 +37,34 @@ function authenticate(req, res, next) {
   }
 }
 
-async function initRabbit(retries = 10, delay = 3000) {
-  for (let i = 0; i < retries; i++) {
+async function initRabbit() {
+  while (true) {
     try {
-      const conn = await amqp.connect(process.env.RABBITMQ_URL);
-      channel = await conn.createChannel();
-      await channel.assertQueue('UserRegistered');
+      logger.info("Attempting to connect to RabbitMQ...");
 
-      // Consume UserRegistered events (Sent from auth-service)
-      channel.consume('UserRegistered', async (msg) => {
+      const conn = await amqp.connect(process.env.RABBITMQ_URL);
+
+      conn.on("error", (err) => {
+        logger.error("RabbitMQ connection error", { error: err.message });
+      });
+
+      conn.on("close", () => {
+        logger.warn("RabbitMQ connection closed. Reconnecting in 2s...");
+        setTimeout(initRabbit, 2000);
+      });
+
+      channel = await conn.createChannel();
+      await channel.assertQueue("UserRegistered");
+
+      logger.info("RabbitMQ connected. Setting up consumer...");
+
+      channel.consume("UserRegistered", async (msg) => {
+        if (!msg) return;
+
         try {
           const { user_id, username } = JSON.parse(msg.content.toString());
 
-          logger.info('Received UserRegistered event', { user_id, username });
+          logger.info("Received UserRegistered event", { user_id, username });
 
           await pool.query(
             `INSERT INTO user_profiles.users (id, username)
@@ -59,28 +74,27 @@ async function initRabbit(retries = 10, delay = 3000) {
           );
 
           channel.ack(msg);
-          logger.info('UserRegistered event processed', { user_id });
+          logger.info("UserRegistered event processed", { user_id });
         } catch (err) {
-          logger.error('Error processing UserRegistered event', {
+          logger.error("Failed to process UserRegistered", {
             error: err.message,
           });
-          // Do not ack message if failed, so it can be retried
+          // Do not ack → message will retry automatically
         }
       });
 
-      logger.info('Connected to RabbitMQ and consuming UserRegistered queue');
-      return;
+      logger.info("UserRegistered consumer is active");
+
+      return; // Successful connection → exit loop
     } catch (err) {
-      logger.warn('RabbitMQ connection failed, retrying...', {
-        attempt: i + 1,
+      logger.warn("RabbitMQ connection failed, retrying...", {
         error: err.message,
       });
-      await new Promise((r) => setTimeout(r, delay));
+
+      // Delay then try again — forever
+      await new Promise((r) => setTimeout(r, 3000));
     }
   }
-
-  logger.error('Could not connect to RabbitMQ after multiple attempts');
-  throw new Error('RabbitMQ connection failed');
 }
 
 initRabbit().catch((err) => logger.error('Rabbit init error', { error: err }));

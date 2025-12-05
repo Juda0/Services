@@ -16,24 +16,25 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 let channel;
 
-async function initRabbit(retries = 10, delay = 3000) {
-  for (let i = 0; i < retries; i++) {
+async function initRabbit() {
+  while (true) {
     try {
       const conn = await amqp.connect(process.env.RABBITMQ_URL);
+      conn.on("error", () => setTimeout(initRabbit, 2000));
+      conn.on("close", () => setTimeout(initRabbit, 2000));
+
       channel = await conn.createChannel();
       await channel.assertQueue('UserRegistered');
-      logger.info('Connected to RabbitMQ');
+
+      logger.info("Connected to RabbitMQ");
       return;
-    } catch {
-      logger.warn(
-        `RabbitMQ connection failed, retrying in ${delay / 1000}s... (${i + 1}/${retries})`
-      );
-      await new Promise((r) => setTimeout(r, delay));
+    } catch (err) {
+      logger.warn("RabbitMQ connection failed. Retrying in 3s...");
+      await new Promise((r) => setTimeout(r, 3000));
     }
   }
-  logger.error('Could not connect to RabbitMQ after multiple attempts');
-  throw new Error('Could not connect to RabbitMQ');
 }
+
 
 initRabbit().catch((err) => logger.error(err));
 
