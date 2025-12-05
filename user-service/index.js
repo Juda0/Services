@@ -1,7 +1,10 @@
+const PORT = process.env.PORT || 3001;
 const express = require("express");
 const { Pool } = require("pg");
 const amqp = require("amqplib");
 const jwt = require("jsonwebtoken");
+
+const logger = require("./logger");
 
 const app = express();
 app.use(express.json());
@@ -15,27 +18,29 @@ let channel;
 // JWT AUTH MIDDLEWARE
 // ---------------------------
 function authenticate(req, res, next) {
-  // Authorization header key is not capital sensitive but in the VALUE of the header "Bearer... *JWTHERE*"
-  // The Bearer part is case sensitive!
   const header = req.headers["authorization"];
+
   if (!header || !header.startsWith("Bearer ")) {
-    return res
-      .status(401)
-      .json({ error: "Missing or invalid Authorization header" });
+    logger.warn("Unauthorized access attempt - missing or invalid header");
+    return res.status(401).json({ error: "Missing or invalid Authorization header" });
   }
 
   const access_token = header.split(" ")[1];
 
   try {
     const payload = jwt.verify(access_token, JWT_SECRET);
-    req.user = payload; // attach token payload to the request
+    req.user = payload;
+    logger.info("JWT validated", { user_id: payload.sub });
     next();
   } catch (err) {
+    logger.warn("JWT validation failed", { reason: err.message });
     return res.status(403).json({ error: "Invalid or expired token" });
   }
 }
 
+// ---------------------------
 // RABBITMQ INITIALIZATION
+// ---------------------------
 async function initRabbit(retries = 10, delay = 3000) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -45,48 +50,84 @@ async function initRabbit(retries = 10, delay = 3000) {
 
       // Consume UserRegistered events
       channel.consume("UserRegistered", async (msg) => {
-        const { user_id, username } = JSON.parse(msg.content.toString());
-        await pool.query(
-          `INSERT INTO user_profiles.users (id, username)
-           VALUES ($1, $2)
-           ON CONFLICT (id) DO NOTHING`,
-          [user_id, username],
-        );
-        channel.ack(msg);
+        try {
+          const { user_id, username } = JSON.parse(msg.content.toString());
+
+          logger.info("Received UserRegistered event", { user_id, username });
+
+          await pool.query(
+            `INSERT INTO user_profiles.users (id, username)
+             VALUES ($1, $2)
+             ON CONFLICT (id) DO NOTHING`,
+            [user_id, username]
+          );
+
+          channel.ack(msg);
+          logger.info("UserRegistered event processed", { user_id });
+        } catch (err) {
+          logger.error("Error processing UserRegistered event", { error: err.message });
+          // Do not ack message if failed, so it can be retried
+        }
       });
 
-      console.log("Connected to RabbitMQ and consuming UserRegistered queue");
+      logger.info("Connected to RabbitMQ and consuming UserRegistered queue");
       return;
     } catch (err) {
-      console.log(
-        `RabbitMQ connection failed, retrying in ${delay / 1000}s... (${i + 1}/${retries})`,
-      );
+      logger.warn("RabbitMQ connection failed, retrying...", {
+        attempt: i + 1,
+        error: err.message
+      });
       await new Promise((r) => setTimeout(r, delay));
     }
   }
-  throw new Error("Could not connect to RabbitMQ after multiple attempts");
+
+  logger.error("Could not connect to RabbitMQ after multiple attempts");
+  throw new Error("RabbitMQ connection failed");
 }
 
-initRabbit().catch(console.error);
+initRabbit().catch((err) => logger.error("Rabbit init error", { error: err }));
 
 // ---------------------------
 // PROTECTED ROUTES
 // ---------------------------
-
-// Get a user's public key (requires JWT)
 app.get("/users/:id/public-key", authenticate, async (req, res) => {
   const { id } = req.params;
 
-  const result = await pool.query(
-    "SELECT public_key FROM user_profiles.users WHERE id=$1",
-    [id],
-  );
+  logger.info("Public key request", { requester_id: req.user.sub, target_user: id });
 
-  if (!result.rows[0]) {
-    return res.status(404).json({ error: "User not found" });
+  try {
+    const result = await pool.query(
+      "SELECT public_key FROM user_profiles.users WHERE id=$1",
+      [id]
+    );
+
+    if (!result.rows[0]) {
+      logger.warn("Public key request failed - user not found", { user_id: id });
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    logger.info("Public key request successful", { user_id: id });
+    res.json({ public_key: result.rows[0].public_key });
+
+  } catch (err) {
+    logger.error("Database error fetching public key", { error: err.message });
+    return res.status(500).json({ error: "Internal server error" });
   }
-
-  res.json({ public_key: result.rows[0].public_key });
 });
 
-app.listen(3001, () => console.log("User Service running on port 3001"));
+// ---------------------------
+// GLOBAL ERROR HANDLING
+// ---------------------------
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled Rejection", { reason });
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error("Uncaught Exception", { error: err });
+  process.exit(1); // optional
+});
+
+// ---------------------------
+// SERVICE START
+// ---------------------------
+app.listen(PORT, () => logger.info(`User Service running on port ${PORT}`));
