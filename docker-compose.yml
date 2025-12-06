@@ -57,6 +57,7 @@ services:
   auth-service:
     build: ./auth-service
     environment:
+      SERVICE_NAME: auth-service
       DATABASE_URL: postgres://${AUTH_DB_USER}:${AUTH_DB_PASSWORD}@postgres-auth:5432/${AUTH_DB_NAME}
       JWT_SECRET: ${JWT_SECRET}
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
@@ -74,6 +75,7 @@ services:
   user-service:
     build: ./user-service
     environment:
+      SERVICE_NAME: user-service
       DATABASE_URL: postgres://${USER_DB_USER}:${USER_DB_PASSWORD}@postgres-user:5432/${USER_DB_NAME}
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       JWT_SECRET: ${JWT_SECRET}
@@ -91,6 +93,7 @@ services:
   friend-service:
     build: ./friend-service
     environment:
+      SERVICE_NAME: friend-service
       MONGO_URL: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongodb:27017/?authSource=admin
       JWT_SECRET: ${JWT_SECRET}
       LOGSTASH_HOST: ${LOGSTASH_HOST}
