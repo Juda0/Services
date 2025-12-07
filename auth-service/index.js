@@ -62,8 +62,8 @@ async function initRabbit() {
       conn.on('error', () => setTimeout(initRabbit, 2000));
       conn.on('close', () => setTimeout(initRabbit, 2000));
 
-      channel = await conn.createChannel();
-      await channel.assertQueue('UserRegistered');
+      channel = await conn.createConfirmChannel();
+      await channel.assertQueue('UserRegistered', { durable: true });
       logger.info('Connected to RabbitMQ');
       return;
     } catch (err) {
@@ -128,9 +128,20 @@ app.post('/auth/register', async (req, res) => {
     if (channel) {
       try {
         channel.sendToQueue(
-          'UserRegistered',
-          Buffer.from(JSON.stringify({ user_id: id, username, traceId }))
-        );
+        'UserRegistered',
+        Buffer.from(JSON.stringify({ user_id: id, username, traceId })),
+        { persistent: true },
+        (err, ok) => {
+          if (err) {
+            logger.error('RabbitMQ message NOT acknowledged', {
+              error: err.message || err,
+              traceId,
+            });
+          } else {
+            logger.info('RabbitMQ message acknowledged', { traceId });
+          }
+        }
+      );
       } catch (pubErr) {
         logger.error('Failed to publish UserRegistered', {
           error: pubErr.message || pubErr,
