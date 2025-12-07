@@ -10,7 +10,8 @@ const instanceId = os.hostname();
 
 const logger = createLogger({
   level: 'info',
-  defaultMeta: {   // Add service and instance info to all logs
+  defaultMeta: {
+    // Add service and instance info to all logs
     service: serviceName,
     instance: instanceId,
   },
