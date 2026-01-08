@@ -40,31 +40,37 @@ function authenticate(req, res, next) {
 async function initRabbit() {
   while (true) {
     try {
-      logger.info("Attempting to connect to RabbitMQ...");
+      logger.info('Attempting to connect to RabbitMQ...');
 
       const conn = await amqp.connect(process.env.RABBITMQ_URL);
 
-      conn.on("error", (err) => {
-        logger.error("RabbitMQ connection error", { error: err.message });
+      conn.on('error', (err) => {
+        logger.error('RabbitMQ connection error', { error: err.message });
       });
 
-      conn.on("close", () => {
-        logger.warn("RabbitMQ connection closed. Reconnecting in 2s...");
+      conn.on('close', () => {
+        logger.warn('RabbitMQ connection closed. Reconnecting in 2s...');
         setTimeout(initRabbit, 2000);
       });
 
       channel = await conn.createChannel();
-      await channel.assertQueue("UserRegistered");
+      await channel.assertQueue('UserRegistered');
 
-      logger.info("RabbitMQ connected. Setting up consumer...");
+      logger.info('RabbitMQ connected. Setting up consumer...');
 
-      channel.consume("UserRegistered", async (msg) => {
+      channel.consume('UserRegistered', async (msg) => {
         if (!msg) return;
 
         try {
-          const { user_id, username, traceId} = JSON.parse(msg.content.toString());
+          const { user_id, username, traceId } = JSON.parse(
+            msg.content.toString()
+          );
 
-          logger.info("Received UserRegistered event", { user_id, username, traceId });
+          logger.info('Received UserRegistered event', {
+            user_id,
+            username,
+            traceId,
+          });
 
           await pool.query(
             `INSERT INTO user_profiles.users (id, username)
@@ -74,20 +80,21 @@ async function initRabbit() {
           );
 
           channel.ack(msg);
-          logger.info("UserRegistered event processed", { user_id, traceId});
+          logger.info('UserRegistered event processed', { user_id, traceId });
         } catch (err) {
-          logger.error("Failed to process UserRegistered", {
-            error: err.message, traceId: traceId
+          logger.error('Failed to process UserRegistered', {
+            error: err.message,
+            traceId: traceId,
           });
           // Do not ack → message will retry automatically
         }
       });
 
-      logger.info("UserRegistered consumer is active" );
+      logger.info('UserRegistered consumer is active');
 
       return; // Successful connection → exit loop
     } catch (err) {
-      logger.warn("RabbitMQ connection failed, retrying...", {
+      logger.warn('RabbitMQ connection failed, retrying...', {
         error: err.message,
       });
 

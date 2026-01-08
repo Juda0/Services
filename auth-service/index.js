@@ -128,20 +128,20 @@ app.post('/auth/register', async (req, res) => {
     if (channel) {
       try {
         channel.sendToQueue(
-        'UserRegistered',
-        Buffer.from(JSON.stringify({ user_id: id, username, traceId })),
-        { persistent: true },
-        (err, ok) => {
-          if (err) {
-            logger.error('RabbitMQ message NOT acknowledged', {
-              error: err.message || err,
-              traceId,
-            });
-          } else {
-            logger.info('RabbitMQ message acknowledged', { traceId });
+          'UserRegistered',
+          Buffer.from(JSON.stringify({ user_id: id, username, traceId })),
+          { persistent: true },
+          (err, ok) => {
+            if (err) {
+              logger.error('RabbitMQ message NOT acknowledged', {
+                error: err.message || err,
+                traceId,
+              });
+            } else {
+              logger.info('RabbitMQ message acknowledged', { traceId });
+            }
           }
-        }
-      );
+        );
       } catch (pubErr) {
         logger.error('Failed to publish UserRegistered', {
           error: pubErr.message || pubErr,
