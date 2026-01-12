@@ -2,11 +2,8 @@ name: Auth Service CI/CD
 
 on:
   push:
-    paths:
-      - 'Services/auth-service/**'
-  pull_request:
-    paths:
-      - 'Services/auth-service/**'
+    branches:
+      - '**'
 
 jobs:
   build-and-push:
