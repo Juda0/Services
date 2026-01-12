@@ -58,20 +58,23 @@ app.use((req, res, next) => {
 async function initRabbit() {
   while (true) {
     try {
-      const conn = await amqp.connect(process.env.RABBITMQ_URL);
+      const rabbitUrl = `amqp://${process.env.RABBITMQ_USER}:${process.env.RABBITMQ_PASSWORD}@${process.env.RABBITMQ_HOST}:${process.env.RABBITMQ_PORT}`;
+      const conn = await amqp.connect(rabbitUrl);
+
       conn.on('error', () => setTimeout(initRabbit, 2000));
       conn.on('close', () => setTimeout(initRabbit, 2000));
 
       channel = await conn.createConfirmChannel();
       await channel.assertQueue('UserRegistered', { durable: true });
-      logger.info('Connected to RabbitMQ');
+      logger.info(`Connected to RabbitMQ at ${rabbitUrl}`);
       return;
     } catch (err) {
-      logger.warn('RabbitMQ connection failed. Retrying in 3s...');
+      logger.warn(`RabbitMQ connection to url: ${rabbitUrl} failed. Retrying in 3s...`);
       await new Promise((r) => setTimeout(r, 3000));
     }
   }
 }
+
 
 initRabbit().catch((err) => logger.error(err));
 
