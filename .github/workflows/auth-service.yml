@@ -49,5 +49,5 @@ jobs:
 
       - name: Deploy auth-service
         run: |
-          kubectl apply -f Services/auth-service/k8s/deployment.yaml
+          kubectl apply -f auth-service/k8s/deployment.yaml
           kubectl rollout status deployment/auth-service -n postpigeon
