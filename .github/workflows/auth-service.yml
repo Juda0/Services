@@ -29,7 +29,7 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker build -t $REGISTRY/$IMAGE_NAME:latest ./Services/auth-service
+          docker build -t $REGISTRY/$IMAGE_NAME:latest ./auth-service
           docker push $REGISTRY/$IMAGE_NAME:latest
 
   deploy-to-aks:
