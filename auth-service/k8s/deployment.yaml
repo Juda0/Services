@@ -20,27 +20,37 @@ spec:
           ports:
             - containerPort: 3000
           env:
+            # Secrets injected from Kubernetes Secret managed by CI
             - name: DATABASE_URL
-              value: postgres://authuser:authpass@postgres-auth:5432/authdb
+              valueFrom:
+                secretKeyRef:
+                  name: auth-service-secret
+                  key: DATABASE_URL
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: jwt-secret
+                  name: auth-service-secret
                   key: JWT_SECRET
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: auth-service-secret
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: auth-service-secret
+                  key: RABBITMQ_PASSWORD
+
+            # Non-sensitive config can stay inline
             - name: RABBITMQ_HOST
               value: "rabbitmq"
             - name: RABBITMQ_PORT
               value: "5672"
-            - name: RABBITMQ_USER
-              valueFrom:
-                secretKeyRef:
-                  name: rabbitmq-creds
-                  key: username
-            - name: RABBITMQ_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: rabbitmq-creds
-                  key: password
+            - name: LOGSTASH_HOST
+              value: "logstash"
+            - name: LOGSTASH_PORT
+              value: "5044"
           resources:
             requests:
               cpu: "100m"
