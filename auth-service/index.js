@@ -95,7 +95,7 @@ initRabbit().catch((err) => {
 });
 
 
-// ---------------- Register Route ----------------
+// ---------------- Register Route! ----------------
 app.post('/auth/register', async (req, res) => {
   const traceId = req.traceId;
   const username = req.body.username?.toLowerCase();
