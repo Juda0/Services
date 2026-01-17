@@ -55,10 +55,16 @@ app.use((req, res, next) => {
 });
 
 // Initialize RabbitMQ connection
+
 async function initRabbit() {
   while (true) {
+    let rabbitUrl;
     try {
-      const rabbitUrl = `amqp://${process.env.RABBITMQ_USER}:${process.env.RABBITMQ_PASSWORD}@${process.env.RABBITMQ_HOST}:${process.env.RABBITMQ_PORT}`;
+      rabbitUrl =
+        process.env.RABBITMQ_URL ||
+        `amqp://${process.env.RABBITMQ_USER}:${process.env.RABBITMQ_PASSWORD}` +
+        `@${process.env.RABBITMQ_HOST}:${process.env.RABBITMQ_PORT}`;
+
       const conn = await amqp.connect(rabbitUrl);
 
       conn.on('error', () => setTimeout(initRabbit, 2000));
@@ -69,14 +75,25 @@ async function initRabbit() {
       logger.info(`Connected to RabbitMQ at ${rabbitUrl}`);
       return;
     } catch (err) {
-      logger.warn(`RabbitMQ connection to url: ${rabbitUrl} failed. Retrying in 3s...`);
+      logger.warn(
+        `RabbitMQ connection failed (url=${rabbitUrl || 'undefined'}): ${
+          err.message || err
+        }. Retrying in 3s...`
+      );
       await new Promise((r) => setTimeout(r, 3000));
     }
   }
 }
 
 
-initRabbit().catch((err) => logger.error(err));
+
+initRabbit().catch((err) => {
+  logger.error('Fatal error in initRabbit', {
+    error: err.message || err,
+    stack: err.stack,
+  });
+});
+
 
 // ---------------- Register Route ----------------
 app.post('/auth/register', async (req, res) => {
