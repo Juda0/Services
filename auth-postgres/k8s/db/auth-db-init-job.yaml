@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: auth-db-init
+  namespace: postpigeon
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: auth-db-init
+          image: postgres:15
+          # Load POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD from your secret
+          envFrom:
+            - secretRef:
+                name: postgres-auth-secret
+          env:
+            # Connect to your in-cluster Postgres Service
+            - name: PGHOST
+              value: "postgres-auth"
+            - name: PGPORT
+              value: "5432"
+          command: [ "bash", "-c" ]
+          args:
+            - |
+              set -e
+
+              # Map POSTGRES_* to what psql expects
+              export PGUSER="$POSTGRES_USER"
+              export PGPASSWORD="$POSTGRES_PASSWORD"
+              export PGDATABASE="$POSTGRES_DB"
+
+              echo "Running auth DB initialization script..."
+              psql -v ON_ERROR_STOP=1 -f /migrations/auth-init.sql
+              echo "Auth DB initialization completed."
+          volumeMounts:
+            - name: migrations
+              mountPath: /migrations
+      volumes:
+        - name: migrations
+          configMap:
+            name: auth-db-migrations
+            items:
+              - key: auth-init.sql
+                path: auth-init.sql
