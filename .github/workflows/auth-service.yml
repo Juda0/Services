@@ -26,15 +26,25 @@ jobs:
           username: ${{ secrets.AZURE_REGISTRY_USERNAME }}
           password: ${{ secrets.AZURE_REGISTRY_PASSWORD }}
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (SHA tag + latest)
         run: |
-          docker build -t $REGISTRY/$IMAGE_NAME:latest ./auth-service
+          # Build image with commit SHA and 'latest' tags
+          docker build \
+            -t $REGISTRY/$IMAGE_NAME:${GITHUB_SHA} \
+            -t $REGISTRY/$IMAGE_NAME:latest \
+            ./auth-service
+
+          # Push both tags
+          docker push $REGISTRY/$IMAGE_NAME:${GITHUB_SHA}
           docker push $REGISTRY/$IMAGE_NAME:latest
 
   deploy-to-aks:
     runs-on: ubuntu-latest
     needs: build-and-push
     env:
+      REGISTRY: ${{ secrets.AZURE_REGISTRY_NAME }}
+      IMAGE_NAME: auth-service
+
       AUTH_DATABASE_URL: ${{ secrets.AUTH_DATABASE_URL }}
       AUTH_JWT_SECRET: ${{ secrets.AUTH_JWT_SECRET }}
       AUTH_RABBITMQ_USER: ${{ secrets.AUTH_RABBITMQ_USER }}
@@ -61,7 +71,14 @@ jobs:
             --from-literal=RABBITMQ_PASSWORD="$AUTH_RABBITMQ_PASSWORD" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Deploy auth-service
+      - name: Deploy auth-service (apply manifests + set image to SHA)
         run: |
+          # Apply Deployment + Service manifests
           kubectl apply -f auth-service/k8s/deployment.yaml
+
+          # Update the image to this commit's SHA tag
+          kubectl set image deployment/auth-service -n postpigeon \
+            auth-service=$REGISTRY/$IMAGE_NAME:${GITHUB_SHA}
+
+          # Wait for rollout to complete
           kubectl rollout status deployment/auth-service -n postpigeon
