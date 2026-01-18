@@ -174,7 +174,7 @@ app.post('/auth/register', async (req, res) => {
       });
     }
 
-    res.json({ message: 'User created', user_id: id });
+    res.status(201).json({ message: 'User created', user_id: id });
   } catch (err) {
     if (err.code === '23505') {
       // PostgreSQL unique violation
