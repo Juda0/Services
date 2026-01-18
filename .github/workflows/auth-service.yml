@@ -80,5 +80,8 @@ jobs:
           kubectl set image deployment/auth-service -n postpigeon \
             auth-service=$REGISTRY/$IMAGE_NAME:${GITHUB_SHA}
 
+          # Apply the HPA HorizontalPodAutoscaler to auth service
+          kubectl apply -f auth-service/k8s/hpa.yaml
+
           # Wait for rollout to complete
           kubectl rollout status deployment/auth-service -n postpigeon
